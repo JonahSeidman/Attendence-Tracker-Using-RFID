@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"> <!-- This defines the character set for the HTML document, ensuring correct encoding -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- This makes the page responsive for mobile devices -->
+    <title>RFID Attendance Tracker</title> <!-- Title of the webpage that appears on the browser tab -->
+    <style>
+        /* Styling the body of the page with a light background and padding */
+        body {
+            font-family: Arial, sans-serif; /* Sets the font to Arial, a clean and readable font */
+            background-color: #f4f4f9; /* Light background color for better readability */
+            margin: 0;
+            padding: 20px;
+        }
+        /* Centering the main title and giving it a dark color */
+        h1 {
+            color: #333; /* Dark grey color for the text */
+            text-align: center; /* Centers the heading */
+        }
+        /* Styling the table to display RFID logs */
+        table {
+            width: 100%; /* Full width table */
+            margin-top: 20px; /* Adds some space between the title and the table */
+            border-collapse: collapse; /* Removes gaps between table borders */
+        }
+        /* Ensures that the table, its header, and cells have borders */
+        table, th, td {
+            border: 1px solid #ddd; /* Light grey border for all table elements */
+        }
+        /* Adds padding inside table cells for readability */
+        th, td {
+            padding: 12px;
+            text-align: left; /* Aligns text to the left for all cells */
+        }
+        /* Makes table headers have a light background */
+        th {
+            background-color: #f2f2f2; /* Light grey background for headers */
+        }
+        /* Alternate row color for readability */
+        tr:nth-child(even) {
+            background-color: #f9f9f9; /* Lighter background for even rows */
+        }
+        /* Row highlight on hover to improve user interaction */
+        tr:hover {
+            background-color: #f1f1f1; /* Slightly darker background when hovering over rows */
+        }
+        /* Centers the content and gives it a width of 80% of the viewport */
+        .container {
+            width: 80%;
+            margin: 0 auto; /* Horizontally centers the container */
+        }
+        /* Styles the modal that appears for name assignment */
+        #nameModal {
+            display: none; /* Initially hidden */
+            position: fixed; /* Fixed to the viewport */
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5); /* Semi-transparent black background */
+            justify-content: center;
+            align-items: center; /* Centers the modal content vertically and horizontally */
+        }
+        /* Styles the content inside the name modal */
+        #nameModalContent {
+            background: white; /* White background for the modal */
+            padding: 20px; /* Adds padding inside the modal */
+            text-align: center; /* Centers the text */
+            border-radius: 5px; /* Slightly rounded corners */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RFID Attendance Logs</h1> <!-- Main title of the page -->
+        <table id="rfidTable"> <!-- Table to display RFID data -->
+            <thead>
+                <tr>
+                    <th>Name</th> <!-- Column for the name associated with the RFID tag -->
+                    <th>UID</th> <!-- Column for the UID (unique identifier) of the RFID card -->
+                    <th>Last Read</th> <!-- Column showing the last time the card was read -->
+                    <th>Actions</th> <!-- Column for actions like assigning a name -->
+                </tr>
+            </thead>
+            <tbody>
+            <!-- Data will be dynamically added here by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Modal for entering name, appears when assigning a name to a card -->
+    <div id="nameModal">
+        <div id="nameModalContent">
+            <h2>Assign a Name</h2> <!-- Modal title -->
+            <p>Card UID: <span id="modalUID"></span></p> <!-- Displays the UID of the card -->
+            <input type="text" id="nameInput" placeholder="Enter name"> <!-- Input for entering the name -->
+            <br><br>
+            <button onclick="saveName()">Save</button> <!-- Button to save the name -->
+            <button onclick="closeModal()">Not Now</button> <!-- Button to close the modal without saving -->
+        </div>
+    </div>
+
+    <!-- Firebase and JavaScript to retrieve data -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app.js"></script> <!-- Loads Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database.js"></script> <!-- Loads Firebase Realtime Database SDK -->
+
+    <script>
+        // Firebase config, replace with your Firebase project details
+        const firebaseConfig = {
+            apiKey: "your-api-key", /* Firebase API key */
+            authDomain: "your-project-id.firebaseapp.com", /* Firebase Auth domain */
+            databaseURL: "https://your-project-id-default-rtdb.firebaseio.com", /* URL of the Firebase Realtime Database */
+            projectId: "your-project-id", /* Firebase project ID */
+            storageBucket: "your-project-id.appspot.com", /* Firebase storage bucket */
+            messagingSenderId: "your-messaging-sender-id", /* Firebase messaging sender ID */
+            appId: "your-app-id" /* Firebase app ID */
+        };
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig); /* Initializes Firebase app */
+        const database = firebase.database(); /* Gets a reference to the Firebase Realtime Database */
+
+        let currentUID = "";  // Store UID for name assignment
+
+        // Fetch RFID logs from Firebase Realtime Database
+        function fetchRFIDLogs() {
+            const logsRef = database.ref('/rfid_logs'); /* Gets reference to the 'rfid_logs' path in the database */
+            logsRef.once('value', (snapshot) => { /* Retrieves all data from the 'rfid_logs' once */
+                const logs = snapshot.val(); /* Stores all the logs in an object */
+                const table = document.getElementById('rfidTable').getElementsByTagName('tbody')[0]; /* Gets the table body */
+                table.innerHTML = '';  // Clear existing rows
+
+                for (const uid in logs) {
+                    const log = logs[uid]; /* Gets the log for each UID */
+                    const name = log.name || '<em>Not Assigned</em>'; /* If the name isn't assigned, show 'Not Assigned' */
+                    const lastRead = new Date(log.timestamp * 1000).toLocaleString(); /* Converts the timestamp into a readable date */
+
+                    const row = document.createElement('tr'); /* Creates a new row */
+                    row.innerHTML = `
+                        <td>${name}</td> <!-- Displays the name -->
+                        <td>${uid}</td> <!-- Displays the UID -->
+                        <td>${lastRead}</td> <!-- Displays the last read time -->
+                        <td><button onclick="openModal('${uid}')">Assign Name</button></td> <!-- Button to assign a name to the UID -->
+                    `;
+                    table.appendChild(row); /* Adds the row to the table */
+
+                    // If new tag, prompt for a name
+                    if (log.is_new) { /* Checks if the card is marked as new */
+                        openModal(uid); /* Opens the modal to assign a name */
+                    }
+                }
+            });
+        }
+
+        // Open the modal to assign a name
+        function openModal(uid) {
+            currentUID = uid; /* Stores the current UID for use when saving the name */
+            document.getElementById('modalUID').textContent = uid; /* Displays the UID in the modal */
+            document.getElementById('nameModal').style.display = 'flex'; /* Shows the modal */
+        }
+
+        // Close the modal
+        function closeModal() {
+            document.getElementById('nameModal').style.display = 'none'; /* Hides the modal */
+        }
+
+        // Save the name to Firebase
+        function saveName() {
+            const name = document.getElementById('nameInput').value; /* Gets the value entered in the input */
+            if (name) { /* If a name is entered */
+                const updates = {}; /* Prepares an object for Firebase updates */
+                updates[`/rfid_logs/${currentUID}/name`] = name; /* Assigns the name to the corresponding UID */
+                updates[`/rfid_logs/${currentUID}/is_new`] = false;  // Mark as no longer new
+                database.ref().update(updates, function(error) { /* Updates Firebase with the new name */
+                    if (error) {
+                        alert('Failed to save name'); /* Shows an alert if the update fails */
+                    } else {
+                        alert('Name saved successfully'); /* Shows an alert if the update succeeds */
+                        closeModal(); /* Closes the modal */
+                        fetchRFIDLogs();  // Refresh the table to show the new name
+                    }
+                });
+            }
+        }
+
+        // Call the function on page load
+        window.onload = fetchRFIDLogs; /* Fetches RFID logs when the page is loaded */
+    </script>
+</body>
+</html>
